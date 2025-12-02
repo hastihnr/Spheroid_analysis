@@ -1,3 +1,7 @@
+"""
+This code is to select spheroids and it works for both brightfield and fluorescence images.
+@author: Hasti Honari"""
+
 import cv2
 import os
 import numpy as np
