@@ -59,8 +59,8 @@ class Contour:
         #mean_gray_level =getMeanGreyLevel(image, contour)
 
         # Calculate mean gray level within the contour
-        mask = np.zeros_like(image)
-        cv2.drawContours(mask, [contour], -1, (0,255,0), -1)
+        mask = np.zeros(image.shape, dtype=np.uint8)
+        cv2.drawContours(mask, [contour], -1, 255, -1)
 
         # Calculate aspect ratio
         self.aspect_ratio = float(w) / h
@@ -303,8 +303,9 @@ def calculate_bounding_rectangle(contour):
     return x, y, w, h
 
 def calculate_meanGrayLevel(image, contour):
-    mask = np.zeros_like(image)
-    cv2.drawContours(mask, [contour], -1, (0,255,0), -1)
+    # Ensure mask is uint8 for OpenCV functions
+    mask = np.zeros(image.shape, dtype=np.uint8)
+    cv2.drawContours(mask, [contour], -1, 255, -1)
     mean_gray_level = cv2.mean(image, mask=mask)[0]
     return mean_gray_level
 
@@ -325,61 +326,39 @@ def convertToRGB(
 
     return imageConverted
 def getGreyOutside(image, unscaled_contours):
+    # Create a mask covering the provided contours (filled)
+    mask = np.zeros(image.shape, dtype=np.uint8)
+    if len(unscaled_contours) > 0:
+        cv2.drawContours(mask, unscaled_contours, -1, 255, thickness=cv2.FILLED)
+        # Pixels outside the contours
+        outside_pixels = image[mask == 0]
+    else:
+        # If no contours, outside is whole image
+        outside_pixels = image.ravel()
 
-    for i in range(len(unscaled_contours)):
-        # Create a mask for the contour i
-        mask = np.zeros(image.shape,np.uint8)
-        cv2.drawContours(mask,unscaled_contours,-1,(0,255,0), thickness=cv2.FILLED)
-        outside_pixels = np.where(mask == 0, image,1)
-        #print(len(outside_pixels))
-    #     average_pixel_value = np.mean(masked_pixels)
-        
-    #     meanGreyLevels.append(average_pixel_value)
-        
-    # return meanGreyLevels
+    if outside_pixels.size == 0:
+        return 0.0
 
-        outside_values = outside_pixels[outside_pixels!=1]
-        mean_outside= np.mean(outside_values)
-
-     
-    return mean_outside
+    # Compute mean using original image dtype (works for uint16)
+    return float(np.mean(outside_pixels))
 
 def getMeanGreyLevel(
         image,
         contours
     ):
-    
-    meanGreyLevels = []
-    
-    for i in range(len(contours)):
-        # Create a mask for the contour i
-        mask = np.zeros(image.shape,np.uint8)
-        cv2.drawContours(mask,contours,-1,255, thickness=cv2.FILLED)
-        # Get the pixel intensities inside the mask
-        masked_pixels = np.where(mask == 255, image,0)
+    # Create a mask covering the provided contours (filled)
+    mask = np.zeros(image.shape, dtype=np.uint16)
+    if len(contours) > 0:
+        cv2.drawContours(mask, contours, -1, 255, thickness=cv2.FILLED)
+        inside_pixels = image[mask == 255]
+    else:
+        inside_pixels = np.array([], dtype=image.dtype)
 
-    #     average_pixel_value = np.mean(masked_pixels)
-        
-    #     meanGreyLevels.append(average_pixel_value)
-        
-    # return meanGreyLevels
-        # outside_pixels = np.where(mask == 0, image,1)
+    if inside_pixels.size == 0:
+        return 0.0
 
-
-        # outside_values = outside_pixels[outside_pixels!=1]
-        # mean_outside= np.mean(outside_values)
-    
-        pixel_values = masked_pixels[masked_pixels != 0] 
-        meanGreyLevels.append(pixel_values)
-    #print(pixel_values)
-        
-        # Compute average pixel value 
-        average_pixel_value = np.mean(meanGreyLevels)
-        
-        #meanGreyLevels.append(average_pixel_value)
-        
-    #return mean_outside, pixel_values, meanGreyLevels
-    return average_pixel_value
+    # Return mean using original image dtype (preserves 16-bit range)
+    return float(np.mean(inside_pixels))
 def getImgBits(
         image
     ):
@@ -393,14 +372,38 @@ def getImgBits(
 # Function to calculate grey level homogeneity within a contour
 def calculate_contour_homogeneity(image, contour):
     # Create a mask for the contour
-    mask = np.zeros_like(image, dtype=np.uint8)
+    mask = np.zeros(image.shape, dtype=np.uint8)
     cv2.drawContours(mask, [contour], -1, 255, thickness=cv2.FILLED)
-    
+
     # Apply the mask to the image
     masked_image = cv2.bitwise_and(image, image, mask=mask)
-    
-    # Calculate GLCM
-    glcm = graycomatrix(masked_image, distances=[1], angles=[0], levels=256, symmetric=True, normed=True)
+
+    # If image is multi-channel, convert to single-channel grayscale for texture
+    if masked_image.ndim == 3:
+        try:
+            masked_gray = cv2.cvtColor(masked_image, cv2.COLOR_BGR2GRAY)
+        except Exception:
+            # fallback: take first channel
+            masked_gray = masked_image[..., 0]
+    else:
+        masked_gray = masked_image
+
+    # Convert masked grayscale to 8-bit for GLCM while preserving 16-bit info when present
+    if masked_gray.dtype == np.uint16:
+        # Scale using full 16-bit range so values reflect original intensities
+        img8 = (masked_gray.astype(np.float32) / 65535.0 * 255.0).clip(0, 255).astype(np.uint8)
+    elif masked_gray.dtype == np.uint8:
+        img8 = masked_gray
+    else:
+        # Generic scaling to 0-255 based on max value
+        max_val = masked_gray.max()
+        if max_val == 0:
+            img8 = masked_gray.astype(np.uint8)
+        else:
+            img8 = (masked_gray.astype(np.float32) / float(max_val) * 255.0).clip(0, 255).astype(np.uint8)
+
+    # Calculate GLCM on 8-bit representation derived from the original image dtype
+    glcm = graycomatrix(img8, distances=[1], angles=[0], levels=256, symmetric=True, normed=True)
     
     # Calculate homogeneity
     homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
@@ -413,6 +416,10 @@ def process_image(image_path, contour_image_path, threshold1,threshold2,gaussian
 
     # Read the image
     image = cv2.imread(image_path, -1) #cv2.IMREAD_GRAYSCALE
+    if image is None:
+        print(f"[WARN] process_image: could not read image at '{image_path}'. Skipping processing for this file.")
+        return []
+
     #image = (image16/256).astype('uint8')
 
     # Calculate scaled and unscaled contours
