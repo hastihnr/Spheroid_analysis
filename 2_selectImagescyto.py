@@ -1,3 +1,7 @@
+"""
+This code is to select spheroids and it works for both brightfield and fluorescence images.
+@author: Hasti Honari"""
+
 import cv2
 import os
 import numpy as np
@@ -5,12 +9,12 @@ import pandas as pd
 import time 
 import modules.functions as functions
 import modules.functionsSelectImg as functionsSelectImg
-folder =  "F:\\Experiments\\PTT\\Spheroids\\08072025_hs578t\\1007 after laser"
+folder =  "E:\\Experiments\\PTT\\Spheroids\\08072025_hs578t\\1007 before laser"
 #folder  = "H:\\Datas PE saved\\240617 Viability PDX time"
 
 
 
-folderInputNames  = ['2025-07-10_151933_tube1']
+folderInputNames  = ['2025-07-10_102302_tube1']
 
 
 
@@ -139,6 +143,8 @@ for f, folderInputName in enumerate(folderInputNames):
     
     folderImg8bCropPath = f"{folderAnalysis}\\{folderInputName}_cropped_8bits"
     functions.createFolder(folderImg8bCropPath)
+    folderImg16bCropPath = f"{folderAnalysis}\\{folderInputName}_cropped_16bits"
+    functions.createFolder(folderImg16bCropPath)
     folderCSVSelectPath = f"{folderAnalysis}\\selectedImagesCSV"
     functions.createFolder(folderCSVSelectPath)
     
@@ -154,23 +160,27 @@ for f, folderInputName in enumerate(folderInputNames):
         if not paths_BF.empty:
             images_BF = functionsSelectImg.getImages(paths_BF)
             images_cropped_BF = [functions.crop_image(image, cx, cy, crop_size) for image in images_BF]
-            image_cropped_focused_BF, _ = functions.autoFocus(images_cropped_BF, paths_BF)
+            image_cropped_focused_BF, path_BF = functions.autoFocus(images_cropped_BF, paths_BF)
             image_cropped_focused_8bits_BF = functions.convertTo8Bits(image_cropped_focused_BF * 16)
             cv2.imwrite(f"{folderImg8bCropPath}\\{name_images[ind]}_8bits_BF.tiff", image_cropped_focused_8bits_BF)
+            # Also save the original cropped focused image as 16-bit (no conversion)
+            cv2.imwrite(f"{folderImg16bCropPath}\\{name_images[ind]}_16bits_BF.tiff", image_cropped_focused_BF.astype(np.uint16))
         
         if not paths_flor.empty:
             images_flor = functionsSelectImg.getImages(paths_flor)
             images_cropped_flor = [functions.crop_image(image, cx, cy, crop_size) for image in images_flor]
-            image_cropped_focused_flor, path = functions.autoFocus(images_cropped_flor, paths_flor)
+            image_cropped_focused_flor, path_flor = functions.autoFocus(images_cropped_flor, paths_flor)
             image_cropped_focused_8bits_flor = functions.convertTo8Bits(image_cropped_focused_flor * 16)
             image_cropped_focused_8bits_flor= cv2.convertScaleAbs(image_cropped_focused_8bits_flor, alpha=6, beta=3) #for very high signal
             # image_cropped_focused_8bits_flor= cv2.convertScaleAbs(image_cropped_focused_8bits_flor, alpha=18, beta=5) #for low signal
             #image_cropped_focused_8bits_flor= cv2.convertScaleAbs(image_cropped_focused_8bits_flor, alpha=255/image_cropped_focused_8bits_flor.max(), beta=1)
             cv2.imwrite(f"{folderImg8bCropPath}\\{name_images[ind]}_8bits_flor.tiff", image_cropped_focused_8bits_flor)
             print(f"{folderImg8bCropPath}\\{name_images[ind]}_8bits_flor.tiff")
+            # Also save the original cropped focused fluorescence image as 16-bit (no conversion)
+            cv2.imwrite(f"{folderImg16bCropPath}\\{name_images[ind]}_16bits_flor.tiff", image_cropped_focused_flor.astype(np.uint16))
 
         # Prepare the DataFrame row for the selected image: add the centroids of the detected object and an ID
-        row_selected = df_infos[df_infos['Paths'] == path].copy()
+        row_selected = df_infos[df_infos['Paths'] == path_BF].copy()
         row_selected['cx'] = cx
         row_selected['cy'] = cy
         row_selected['IDimage'] = name_images[ind]

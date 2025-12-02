@@ -2,7 +2,7 @@
 """
 Created on Fri Jun 16 16:36:11 2023
 
-@author: MMBM_CAROLINE
+@author: Caroline Parent and Hasti Honari
 """
 import cv2
 import os
@@ -26,25 +26,7 @@ scale_percent: percentage of the initial images displayed (if 100, no size reduc
 
 """"""
 folder =  "F:\\Experiments\\PTT\\Spheroids\\05052025\\07052025 after laser"
-#folder  = "H:\\Datas PE saved\\240617 Viability PDX time"
 
-
-# folderInputNames = ['2024-01-30_141717_tube1_0um_day1',
-#                      '2024-01-30_142935_tube2_0.1um_day1',
-#                      '2024-01-30_144217_tube3_1um_day1',
-#                      '2024-01-30_145531_tube4_2um_day1',
-#                      '2024-01-30_150814_tube5_5uM_day1',
-#                      '2024-01-30_151910_tube6_10uM_day1',
-#                      '2024-01-30_153121_tube7_20uM_day1',
-#                      '2024-01-30_154642_tube8_50uM_day1',
-#                      '2024-02-01_131519_tube1_0um_day3',
-#                      '2024-02-01_132641_tube2_0.1um_day3',
-#                      '2024-02-01_133802_tube3_1um_day3',
-#                      '2024-02-01_134954_tube4_2um_day3',
-#                      '2024-02-01_140132_tube5_5uM_day3',
-#                      '2024-02-01_141330_tube6_10uM_day3',
-#                      '2024-02-01_142451_tube7_20uM_day3',
-#                      '2024-02-01_143732_tube8_50uM_day3']
 folderInputNames  = ['2025-05-07_135107_tube1','2025-05-07_140511_tube3','2025-05-07_141932_tube7','2025-05-07_143332_tube4','2025-05-07_145019_tube2',
 '2025-05-07_150413_tube5','2025-05-07_151807_tube8','2025-05-07_153210_tube6']
 

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from skimage import feature
 from skimage.util import img_as_ubyte 
-import fonctions as external_functions
+import morpho_functions as external_functions
 from skimage.feature import graycomatrix, graycoprops
 # Filter objects based on criteria
 min_aspect_ratio = 0
@@ -21,17 +21,18 @@ threshold2_fluo = 100
 
 # Path to the folder containing images
 
-images_folder = "F:\\Experiments\\PTT\\Spheroids\\05052025\\07052025 after laser"
-folderInputNames =  ['2025-05-07_135107_tube1','2025-05-07_140511_tube3','2025-05-07_141932_tube7','2025-05-07_143332_tube4','2025-05-07_145019_tube2',
-'2025-05-07_150413_tube5','2025-05-07_151807_tube8','2025-05-07_153210_tube6']
+images_folder = "E:\\Experiments\\PTT\\Spheroids\\08072025_hs578t\\1007 before laser"
+folderInputNames =  ['2025-07-10_102302_tube1']
 
 
 for folderInputName in enumerate(folderInputNames):
     
     #print("Folder %s/%s : %s" %(f+1,len(folderInputNames), folderInputName))
-    # Path to the folder where focused images will be found
+    # Path to the folders where focused images will be found
+    # 8-bit folder is used to create masks; 16-bit folder used for intensity measurements
     #input_folder = images_folder + "\\"+ "Morpho" + "\\%s_selectedstack" %folderInputName + "_Focused"
-    input_folder = os.path.join(images_folder, "Analysis", f"{folderInputName[1]}_cropped_8bits")
+    input_folder_8 = os.path.join(images_folder, "Analysis", f"{folderInputName[1]}_cropped_8bits")
+    input_folder_16 = os.path.join(images_folder, "Analysis", f"{folderInputName[1]}_cropped_16bits")
     contour_folder = os.path.join(images_folder, "Morpho", f"{folderInputName[1]}_Contours")
     os.makedirs(contour_folder, exist_ok=True)
 
@@ -41,12 +42,28 @@ for folderInputName in enumerate(folderInputNames):
     all_results_fluo = []
     filtered_results_fluo = []
  
-    # Process each image in the folder
-    for image_file in os.listdir(input_folder):
+    # Process each image in the 8-bit folder (masks) and map to corresponding 16-bit image for measurements
+    for image_file in os.listdir(input_folder_8):
         if image_file.endswith(('.tiff', '.tif')):  # Filter only image files
             if image_file.endswith('_BF.tiff'):
-                bf_image_path = os.path.join(input_folder, image_file)
-                results_objs = external_functions.process_image(bf_image_path, bf_image_path,threshold1,threshold2,gaussianFilterSD, scaled_factor=0.8)
+                bf_image_path_8 = os.path.join(input_folder_8, image_file)
+                # Map 8-bit filename to 16-bit counterpart (replace token `_8bits_` with `_16bits_`)
+                if '_8bits_' in image_file:
+                    image_file_16 = image_file.replace('_8bits_', '_16bits_')
+                else:
+                    # fallback: attempt replacing '8bits' with '16bits'
+                    image_file_16 = image_file.replace('8bits', '16bits')
+                bf_image_path_16 = os.path.join(input_folder_16, image_file_16)
+                # If 16-bit version is missing, fall back to 8-bit (but warn)
+                if not os.path.exists(bf_image_path_16):
+                    print(f"[WARN] 16-bit image not found for '{image_file_16}'. Falling back to 8-bit for intensity calculations.")
+                    bf_image_path_16 = bf_image_path_8
+
+                # Use 8-bit image to create mask (contour_image_path) and 16-bit image (or fallback) for intensity measurements (image_path)
+                results_objs = external_functions.process_image(bf_image_path_16, bf_image_path_8, threshold1, threshold2, gaussianFilterSD, scaled_factor=0.8)
+                if not results_objs:
+                    print(f"[INFO] No contours returned for '{image_file}', skipping.")
+                    continue
                 filtered_results_objs = external_functions.filter_objects(results_objs, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area)
                 filtered_results.extend([obj.get_results() for obj in filtered_results_objs])
 
@@ -66,10 +83,20 @@ for folderInputName in enumerate(folderInputNames):
                 #print(with_scale)
                     cv2.imwrite(contour_file, with_scale)
                     flor_image_file = image_file.replace("BF.tiff", "flor.tiff")
-                    flor_image_path = os.path.join(input_folder, flor_image_file)
-                    if os.path.exists(flor_image_path):
-                        flor_results = external_functions.process_image(flor_image_path, bf_image_path, threshold1, threshold2, gaussianFilterSD, scaled_factor=1)
-                        flor_filtered_results = external_functions.filter_objects(flor_results, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area)
+                    flor_image_path_8 = os.path.join(input_folder_8, flor_image_file)
+                    # Map 8-bit flor filename to 16-bit counterpart
+                    if '_8bits_' in flor_image_file:
+                        flor_image_file_16 = flor_image_file.replace('_8bits_', '_16bits_')
+                    else:
+                        flor_image_file_16 = flor_image_file.replace('8bits', '16bits')
+                    flor_image_path_16 = os.path.join(input_folder_16, flor_image_file_16)
+                    if os.path.exists(flor_image_path_16):
+                        # Use BF-derived mask (8-bit) and fluorescence 16-bit image for measurements
+                        flor_results = external_functions.process_image(flor_image_path_16, bf_image_path_8, threshold1, threshold2, gaussianFilterSD, scaled_factor=1)
+                        if not flor_results:
+                            print(f"[INFO] No contours returned for fluorescence '{flor_image_file}', skipping.")
+                        else:
+                            flor_filtered_results = external_functions.filter_objects(flor_results, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area)
                         flor_all_results = []
                         flor_all_results.extend(flor_results)
                         contourFiltered = external_functions.filteredContours(flor_results, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area, threshold1, threshold2, gaussianFilterSD)
