@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from skimage import feature
 from skimage.util import img_as_ubyte 
-import fonctions as external_functions
+import morpho_functions as external_functions
 from skimage.feature import graycomatrix, graycoprops
 # Filter objects based on criteria
 min_aspect_ratio = 0
