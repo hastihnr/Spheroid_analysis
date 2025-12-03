@@ -6,6 +6,7 @@ from skimage import feature
 from skimage.util import img_as_ubyte 
 import statistics
 from skimage.feature import graycomatrix, graycoprops
+import logging
 gaussianFilterSD = 1
 threshold1 = 0
 threshold2 = 100  #65 for dark, 80 otherwise
@@ -112,16 +113,37 @@ def calculate_circularity(contour):
     return (4 * np.pi * calculate_area(contour)) / (calculate_perimeter(contour) ** 2)
 
  
-def filter_objects(results, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area):
-    assert(len(results) > 0 and type(results[0]) is Contour), "Results must be a list of Contour objects" 
+def filter_objects(results, min_aspect_ratio, max_aspect_ratio, min_circularity, max_circularity, min_area, max_area, min_grey_diff=None):
+    """
+    Filter a list of `Contour` objects by geometric and optional gray-level difference criteria.
+
+    If `min_grey_diff` is provided, only contours where abs(grey_in - grey_out) >= min_grey_diff
+    are kept. This helps exclude hollow bubbles whose interior intensity is similar to background.
+    """
+    assert(len(results) > 0 and type(results[0]) is Contour), "Results must be a list of Contour objects"
     filtered_results = []
     for contour in results:
-        # Check if the object meets the filtering criteria
-        if (min_aspect_ratio <= contour.get_aspect_ratio() <= max_aspect_ratio and
-            min_circularity <= contour.get_circularity() <= max_circularity and
-            min_area <= contour.get_area() <= max_area):
-            filtered_results.append(contour)
-    
+        try:
+            meets_geom = (
+                min_aspect_ratio <= contour.get_aspect_ratio() <= max_aspect_ratio and
+                min_circularity <= contour.get_circularity() <= max_circularity and
+                min_area <= contour.get_area() <= max_area
+            )
+        except Exception:
+            meets_geom = False
+        if not meets_geom:
+            continue
+        if min_grey_diff is not None:
+            # contour objects store grey_in and grey_out set by calculate_parameters
+            try:
+                grey_in = float(getattr(contour, 'grey_in', 0.0))
+                grey_out = float(getattr(contour, 'grey_out', 0.0))
+                if abs(grey_in - grey_out) < float(min_grey_diff):
+                    continue
+            except Exception:
+                # If missing values, reject conservative
+                continue
+        filtered_results.append(contour)
     return filtered_results
 
     filtered_results = []
@@ -433,7 +455,7 @@ def process_image(image_path, contour_image_path, threshold1,threshold2,gaussian
     mean_gray_level = abs(getMeanGreyLevel(image,scaled_contours) - getGreyOutside(image, original_contours))
     grey_in = getMeanGreyLevel(image,scaled_contours)
     grey_out = getGreyOutside(image, original_contours)
-    print(getMeanGreyLevel(image,scaled_contours))
+    logging.debug("mean_gray_in: %s", getMeanGreyLevel(image, scaled_contours))
 
     for contour_obj in original_contours_objs:
         contour_obj.calculate_parameters(mean_gray_level, grey_in, grey_out)
@@ -521,7 +543,7 @@ def process_image_fluo(image_path, contour_image, threshold1,threshold2,gaussian
     mean_gray_level = getMeanGreyLevel(image,contours) - getGreyOutside(image, unscaled_contours)
     grey_in = getMeanGreyLevel(image,contours)
     grey_out = getGreyOutside(image, unscaled_contours)
-    print(getMeanGreyLevel(image,contours))
+    logging.debug("mean_gray_in (fluo): %s", getMeanGreyLevel(image, contours))
 
     # Initialize results list
     results = []

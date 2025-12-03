@@ -10,11 +10,11 @@ from skimage.feature import graycomatrix, graycoprops
 min_aspect_ratio = 0
 max_aspect_ratio = 50.0
 min_circularity = 0.1
-max_circularity = 2.0
-min_area = 400
-max_area = 15000
-gaussianFilterSD = 1
-threshold1 = 30
+max_circularity = 1.0
+min_area = 100
+max_area = 25000
+gaussianFilterSD = 0
+threshold1 = 50
 threshold2 = 70  #65 for dark, 80 otherwise
 threshold2_fluo = 100
 
